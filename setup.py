@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="adityassarode.codes",
-    version="1.0.0",
+    version="1.0.1",
     author="Aditya Sarode",
     description="Official code projects by Aditya Sarode",
     packages=find_packages(),
