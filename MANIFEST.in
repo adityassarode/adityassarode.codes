@@ -1,2 +1,3 @@
+include README.md
 recursive-include adityassarode_codes/templates *
 recursive-include adityassarode_codes/owner_templates *

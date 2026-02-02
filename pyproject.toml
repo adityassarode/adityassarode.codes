@@ -4,10 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adityassarode.codes"
-version = "1.0.1"
+version = "1.0.2"
 description = "CLI tool by Aditya Sarode for learning and practice"
 readme = "README.md"
 requires-python = ">=3.8"
 authors = [
-  { name="Aditya Sarode" }
+  { name = "Aditya Sarode" }
 ]
+
+[project.scripts]
+adityassarode-codes = "adityassarode_codes.cli:main"
