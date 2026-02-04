@@ -1,24 +1,38 @@
 import os
-import shutil
 import sys
+import shutil
 import getpass
 import hashlib
-
+import subprocess
 import time
 import threading
 from importlib import resources
 
+import requests
+
+# =========================
+# Metadata
+# =========================
 AUTHOR = "Aditya Sarode"
 TOOL = "adityassarode.codes"
 PACKAGE = "adityassarode_codes"
+
 OWNER_PASSWORD_HASH = hashlib.sha256(
     b"Aditya@#2509"
 ).hexdigest()
 
+# =========================
+# GitHub Config
+# =========================
+GITHUB_OWNER = "adityassarode"
+GITHUB_REPO = "adityassarode-codes"
+GITHUB_BRANCH = "main"
+GITHUB_API = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents"
+GITHUB_RAW = f"https://raw.githubusercontent.com/{GITHUB_OWNER}/{GITHUB_REPO}/{GITHUB_BRANCH}"
 
-OWNER_COMMAND = "__owner_list"
-
-# ===== Colors =====
+# =========================
+# Colors
+# =========================
 RESET = "\033[0m"
 BOLD = "\033[1m"
 CYAN = "\033[96m"
@@ -26,7 +40,9 @@ GREEN = "\033[92m"
 YELLOW = "\033[93m"
 RED = "\033[91m"
 
-# ===== ASCII Logo =====
+# =========================
+# ASCII Logo
+# =========================
 LOGO = f"""
 {CYAN}{BOLD}
    _      _ _ _              
@@ -42,9 +58,39 @@ LOGO = f"""
 {RESET}
 """
 
+# =========================
+# Globals
+# =========================
+SELECTED_FILES = []
 
-# ===== Owner check =====
+# =========================
+# UI Helpers
+# =========================
+def banner():
+    print(LOGO)
 
+
+# ===== Typing animation =====
+def type_print(text, delay=0.01):
+    for ch in text:
+        sys.stdout.write(ch)
+        sys.stdout.flush()
+        time.sleep(delay)
+    print()
+
+
+# ===== Spinner animation =====
+def spinner_task(message, stop_event):
+    frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    i = 0
+    while not stop_event.is_set():
+        sys.stdout.write(
+            f"\r{YELLOW}{message} {frames[i % len(frames)]}{RESET}"
+        )
+        sys.stdout.flush()
+        time.sleep(0.1)
+        i += 1
+    sys.stdout.write("\r" + " " * (len(message) + 10) + "\r")
 
 
 def show_strict_notice_and_confirm():
@@ -89,346 +135,281 @@ def show_strict_notice_and_confirm():
 
 
 
-
-# ===== Typing animation =====
-def type_print(text, delay=0.01):
-    for ch in text:
-        sys.stdout.write(ch)
-        sys.stdout.flush()
-        time.sleep(delay)
-    print()
-
-
-# ===== Spinner animation =====
-def spinner_task(message, stop_event):
-    frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-    i = 0
-    while not stop_event.is_set():
-        sys.stdout.write(
-            f"\r{YELLOW}{message} {frames[i % len(frames)]}{RESET}"
-        )
-        sys.stdout.flush()
-        time.sleep(0.1)
-        i += 1
-    sys.stdout.write("\r" + " " * (len(message) + 6) + "\r")
-
-
-# ===== Banner =====
-def banner():
-    print(LOGO)
-
-
-# ===== Show folder tree =====
-def show_tree(path, indent=""):
-    for item in sorted(os.listdir(path)):
-        if item == "__pycache__" or item.endswith(".pyc"):
-            continue
-
-        full = os.path.join(path, item)
-        if os.path.isdir(full):
-            print(indent + CYAN + "📁 " + item + RESET)
-            show_tree(full, indent + "  ")
-        else:
-            print(indent + GREEN + "📄 " + item + RESET)
-
-
-
+# =========================
+# Auth
+# =========================
 def owner_auth():
     try:
-        pwd = getpass.getpass("Owner password: ")
+        pwd = getpass.getpass("🔐 Owner password: ")
         return hashlib.sha256(pwd.encode()).hexdigest() == OWNER_PASSWORD_HASH
-    except Exception:
-        return False
-    
-def owner_templates_path():
-    return resources.files(PACKAGE).joinpath("owner_templates")
+    except KeyboardInterrupt:
+        print("\n❌ Cancelled by user.")
+        sys.exit(1)
 
 
-# ===== Owner-only project list =====
-def owner_list_projects():
-    if not is_owner():
-        return
 
-    templates_path = resources.files(PACKAGE).joinpath("templates")
-    print(YELLOW + "\n[OWNER MODE] Available projects:\n" + RESET)
+# =========================
+# Paths
+# =========================
+def user_root():
+    root = os.path.join(os.path.expanduser("~"), "adityassarode")
+    os.makedirs(root, exist_ok=True)
+    return root
 
-    for item in templates_path.iterdir():
-        if item.is_dir():
-            print(" -", item.name)
 
-def download_selected_files(project_name):
-    banner()
-    show_strict_notice_and_confirm()
+# =========================
+# Tree Printer
+# =========================
+def show_tree_with_icons(path, indent=""):
+    for item in sorted(os.listdir(path)):
+        full = os.path.join(path, item)
+        if os.path.isdir(full):
+            print(indent + "📂 " + item)
+            show_tree_with_icons(full, indent + "  ")
+        else:
+            print(indent + "📄 " + item)
 
-    templates_path = resources.files(PACKAGE).joinpath("templates")
-    src = templates_path.joinpath(project_name)
+def parse_selection(choice, max_len):
+    indexes = set()
+    for part in choice.split(","):
+        part = part.strip()
+        if part.isdigit():
+            i = int(part) - 1
+            if 0 <= i < max_len:
+                indexes.add(i)
+    return sorted(indexes)
 
-    if not src.exists():
-        print(RED + "Project not found." + RESET)
-        return
 
-    files = [
-        f for f in src.iterdir()
-        if f.is_file() and not f.name.endswith(".pyc")
-    ]
-
-    if not files:
-        print(YELLOW + "No files available to download." + RESET)
-        return
-
-    print(YELLOW + "\nAvailable files:\n" + RESET)
-    for i, f in enumerate(files, 1):
-        print(f"  {i}. {f.name}")
-
-    choice = input(
-        YELLOW + "\nEnter file numbers (comma separated): " + RESET
-    ).strip()
-
+# =========================
+# GitHub Logic
+# =========================
+def gh_list(path=""):
     try:
-        indexes = [int(x.strip()) - 1 for x in choice.split(",")]
-    except ValueError:
-        print(RED + "Invalid input." + RESET)
-        return
-
-    selected = []
-    for i in indexes:
-        if 0 <= i < len(files):
-            selected.append(files[i])
-
-    if not selected:
-        print(RED + "No valid files selected." + RESET)
-        return
-
-    for f in selected:
-        shutil.copy2(f, os.path.join(os.getcwd(), f.name))
-
-    print(
-        GREEN
-        + f"\n✔ Downloaded {len(selected)} file(s) successfully"
-        + RESET
-    )
-
-# ===== Preview project (NO download) =====
-def preview_project(project_name):
-    banner()
-    show_strict_notice_and_confirm()
-    templates_path = resources.files(PACKAGE).joinpath("templates")
-    src = templates_path.joinpath(project_name)
-
-    if not src.exists():
-        print(RED + "Project not found." + RESET)
-        return
-
-    type_print(YELLOW + "👀 Previewing project \n" + RESET)
-    show_tree(src)
+        r = requests.get(f"{GITHUB_API}/{path}", timeout=10)
+        if r.status_code != 200:
+            print(RED + "❌ Failed to load GitHub content." + RESET)
+            return []
+        return r.json()
+    except requests.RequestException:
+        print(RED + "❌ Network error while accessing GitHub." + RESET)
+        return []
 
 
-# ===== Init project (download) =====
-def init_project(project_name):
-    banner()
-    show_strict_notice_and_confirm()
-    templates_path = resources.files(PACKAGE).joinpath("templates")
-    src = templates_path.joinpath(project_name)
 
-    if not src.exists():
-        print(RED + "Error: project not found." + RESET)
-        return
+def gh_download(path):
+    r = requests.get(f"{GITHUB_RAW}/{path}")
+    return r.content if r.status_code == 200 else None
 
-    dst = os.path.join(os.getcwd(), project_name)
 
-    if os.path.exists(dst):
-        print(YELLOW + "Folder already exists." + RESET)
-        return
+def browse_github():
+    global SELECTED_FILES
+    current = ""
+
+    while True:
+        items = gh_list(current)
+        if not items:
+            return
+
+        print(YELLOW + f"\n📂 GitHub: /{current}\n" + RESET)
+
+        entries = []
+
+        for item in items:
+            icon = "📂" if item["type"] == "dir" else "📄"
+            print(f" {len(entries)+1}. {icon} {item['name']}")
+            entries.append((item["type"], item["path"]))
+
+        print("\n 0. 🔙 Go back")
+        print(" ENTER → ⬇ Download selected files")
+
+        choice = input("Select: ").strip()
+        if choice == "":
+            break
+
+        if choice == "0":
+            current = current.rsplit("/", 1)[0] if "/" in current else ""
+            continue
+
+        indexes = parse_selection(choice, len(entries))
+        for i in indexes:
+            kind, path = entries[i]
+            if kind == "dir":
+                current = path
+            else:
+                if path not in SELECTED_FILES:
+                    SELECTED_FILES.append(path)
+
+
+
+def download_github():
+    root = user_root()
 
     stop_event = threading.Event()
     spinner = threading.Thread(
         target=spinner_task,
-        args=(f"Downloading {project_name}", stop_event),
+        args=("⬇ Downloading selected files", stop_event),
     )
     spinner.start()
 
-    time.sleep(0.6)
-    shutil.copytree(src, dst)
+    for path in SELECTED_FILES:
+        data = gh_download(path)
+        if data:
+            dst = os.path.join(root, path)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            with open(dst, "wb") as f:
+                f.write(data)
 
     stop_event.set()
     spinner.join()
 
-    print(GREEN + "✔ Project downloaded successfully" + RESET)
+    post_download_output(root)
 
-    print(CYAN + f"Author: {AUTHOR}\n" + RESET)
-
-    print(YELLOW + BOLD + "📂 Project structure:" + RESET)
-    show_tree(dst)
-
-    print("\n" + CYAN + f"Open with: code {project_name}" + RESET)
-def owner_list():
-    base = owner_templates_path()
-
-    if not base.exists():
-        print(YELLOW + "No owner projects found." + RESET)
-        return
-
-    print(YELLOW + "\n[OWNER] Available owner projects:\n" + RESET)
-
-    for item in base.iterdir():
-        if item.is_dir():
-            print(" -", item.name)
-def owner_view(project_name):
-    base = owner_templates_path()
-    src = base.joinpath(project_name)
-
-    if not src.exists():
-        print(RED + "Owner project not found." + RESET)
-        return
-
-    print(CYAN + "\n[OWNER] Project structure:\n" + RESET)
-    show_tree(src)
-def owner_get(project_name):
-    base = owner_templates_path()
-    src = base.joinpath(project_name)
-
-    if not src.exists():
-        print(RED + "Owner project not found." + RESET)
-        return
-
-    dst = os.path.join(os.getcwd(), project_name)
-
-    if os.path.exists(dst):
-        print(YELLOW + "Folder already exists." + RESET)
-        return
-
-    shutil.copytree(src, dst)
-    print(GREEN + "✔ Owner project downloaded successfully" + RESET)
-def owner_select(project_name):
-    base = owner_templates_path()
-    src = base.joinpath(project_name)
-
-    if not src.exists():
-        print(RED + "Owner project not found." + RESET)
-        return
-
-    files = [f for f in src.rglob("*") if f.is_file()]
-
-    if not files:
-        print(YELLOW + "No files found." + RESET)
-        return
-
-    print(YELLOW + "\nAvailable files:\n" + RESET)
-    for i, f in enumerate(files, 1):
-        print(f"  {i}. {f.relative_to(src)}")
-
-    choice = input(
-        YELLOW + "\nEnter numbers (comma separated): " + RESET
-    ).strip()
-
-    try:
-        indexes = [int(x.strip()) - 1 for x in choice.split(",")]
-    except ValueError:
-        print(RED + "Invalid input." + RESET)
-        return
-
-    for i in indexes:
-        if 0 <= i < len(files):
-            dst = os.path.join(os.getcwd(), files[i].name)
-            shutil.copy2(files[i], dst)
-
-    print(GREEN + "✔ Selected files downloaded" + RESET)
+    
 
 
-# ===== Interactive selector =====
-def interactive_select():
-    templates = resources.files(PACKAGE).joinpath("templates")
-    projects = sorted([p.name for p in templates.iterdir() if p.is_dir()])
+# =========================
+# Local / Owner Templates
+# =========================
+def browse_local(base):
+    global SELECTED_FILES
+    current = base
+
+    while True:
+        print(YELLOW + f"\n📂 Local: {current.relative_to(base)}\n" + RESET)
+
+        entries = []
+
+        for item in current.iterdir():
+            icon = "📂" if item.is_dir() else "📄"
+            print(f" {len(entries)+1}. {icon} {item.name}")
+            entries.append(item)
+
+        print("\n 0. 🔙 Go back")
+        print(" ENTER → ⬇ Download selected files")
+
+        choice = input("Select: ").strip()
+        if choice == "":
+            break
+
+        if choice == "0":
+            if current != base:
+                current = current.parent
+            continue
+
+        indexes = parse_selection(choice, len(entries))
+        for i in indexes:
+            item = entries[i]
+            if item.is_dir():
+                current = item
+            else:
+                if item not in SELECTED_FILES:
+                    SELECTED_FILES.append(item)
+
+
+
+def download_local(base):
+    root = user_root()
+
+    stop_event = threading.Event()
+    spinner = threading.Thread(
+        target=spinner_task,
+        args=("Downloading files", stop_event),
+    )
+    spinner.start()
+
+    for f in SELECTED_FILES:
+        dst = os.path.join(root, f.relative_to(base))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(f, dst)
+
+    stop_event.set()
+    spinner.join()
+
+    post_download_output(root)
+
+
+# =========================
+# Final Output
+# =========================
+def post_download_output(root):
+    print(GREEN + "\n✔ Download completed successfully" + RESET)
+    print(CYAN + f"👤 Author: {AUTHOR}\n" + RESET)
+
+    print(YELLOW + BOLD + "📂 Downloaded structure:" + RESET)
+    print("📂 adityassarode")
+    show_tree_with_icons(root, "  ")
+
+    print(
+    "\n"
+    + CYAN
+    + f"👉 Open with: code {root}"
+    + RESET
+)
+    subprocess.call(["code", root])
+
+
+
+
+
+# =========================
+# GET Command
+# =========================
+def run_get():
+    global SELECTED_FILES
+    SELECTED_FILES = []
 
     banner()
-    print(YELLOW + "Select a project:\n" + RESET)
+    show_strict_notice_and_confirm()
 
-    for i, p in enumerate(projects, 1):
-        print(f"  {i}. {p}")
+    print("1. Browse and select GitHub files")
+    print("2. Browse and select local files")
+    print("3. Browse and select personal files")
 
-    choice = input("\nEnter number: ").strip()
+    option = input("\nSelect option: ").strip()
 
-    if not choice.isdigit():
-        print(RED + "Invalid selection." + RESET)
-        sys.exit(1)
+    if option == "1":
+        browse_github()
+        download_github()
 
-    idx = int(choice) - 1
-    if idx < 0 or idx >= len(projects):
-        print(RED + "Invalid selection." + RESET)
-        sys.exit(1)
+    elif option == "2":
+        base = resources.files(PACKAGE).joinpath("templates")
+        browse_local(base)
+        download_local(base)
 
-    return projects[idx]
-
-
-# ===== Main =====
-def main():
-    # ===== OWNER MODE =====
-    if len(sys.argv) > 1 and sys.argv[1] == "-owner":
-        banner()
-
+    elif option == "3":
         if not owner_auth():
             print(RED + "Access denied." + RESET)
-            sys.exit(1)
+            return
+        base = resources.files(PACKAGE).joinpath("owner_templates")
+        browse_local(base)
+        download_local(base)
 
-        if len(sys.argv) > 2:
-            cmd = sys.argv[2]
 
-            if cmd == "list":
-                owner_list()
-                return
+# =========================
+# UPDATE Command
+# =========================
+def run_update():
+    banner()
+    subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", TOOL])
+    print(GREEN + "\n✔ Update completed" + RESET)
 
-            if cmd == "view" and len(sys.argv) > 3:
-                owner_view(sys.argv[3])
-                return
 
-            if cmd == "get" and len(sys.argv) > 3:
-                owner_get(sys.argv[3])
-                return
-
-            if cmd == "select" and len(sys.argv) > 3:
-                owner_select(sys.argv[3])
-                return
-
-        print(YELLOW + "Owner commands:" + RESET)
-        print("  adityassarode-codes -owner list")
-        print("  adityassarode-codes -owner view <project>")
-        print("  adityassarode-codes -owner get <project>")
-        print("  adityassarode-codes -owner select <project>")
+# =========================
+# MAIN
+# =========================
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "get":
+        run_get()
         return
 
-    # Owner-only hidden command
-    if len(sys.argv) > 1 and sys.argv[1] == OWNER_COMMAND:
-        owner_list_projects()
+    if len(sys.argv) > 1 and sys.argv[1] == "update":
+        run_update()
         return
 
-    # Download selected files
-    if len(sys.argv) > 2 and sys.argv[1] == "get":
-        download_selected_files(sys.argv[2])
-        return
-
-    # Preview project
-    if len(sys.argv) > 2 and sys.argv[1] == "preview":
-        preview_project(sys.argv[2])
-        return
-
-    # Init project
-    if len(sys.argv) > 2 and sys.argv[1] == "init":
-        init_project(sys.argv[2])
-        return
-
-    # No arguments → interactive mode
-    if len(sys.argv) == 1:
-        project = interactive_select()
-        init_project(project)
-        return
-
-    # Fallback / help
     banner()
     print("Usage:")
-    print("  adityassarode-codes")
-    print("  adityassarode-codes init <project>")
-    print("  adityassarode-codes preview <project>")
-    print("  adityassarode-codes get <project>")
+    print(" adityassarode-codes get")
+    print(" adityassarode-codes update")
 
 
 if __name__ == "__main__":
