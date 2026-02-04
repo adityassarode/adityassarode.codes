@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adityassarode.codes"
-version = "1.0.4"
+version = "1.0.5"
 description = "An educational CLI tool by Aditya Sarode designed for learning, experimentation, and code exploration."
 
 readme = "README.md"

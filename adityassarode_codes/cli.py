@@ -427,18 +427,43 @@ def run_update():
 # MAIN
 # =========================
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] == "get":
-        run_get()
+    # Direct command handling
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1]
+
+        if cmd == "get":
+            run_get()
+            return
+
+        if cmd == "update":
+            run_update()
+            return
+
+        # Unknown command
+        banner()
+        print(RED + f"❌ Unknown command: {cmd}" + RESET)
+        print("Run without arguments to see options.")
         return
 
-    if len(sys.argv) > 1 and sys.argv[1] == "update":
-        run_update()
-        return
-
+    # Interactive menu (no arguments)
     banner()
-    print("Usage:")
-    print(" adityassarode-codes get")
-    print(" adityassarode-codes update")
+    print(YELLOW + "What would you like to do?\n" + RESET)
+    print(" 1. ⬇ Get / Download files")
+    print(" 2. 🔄 Update this tool")
+    print(" 3. ❌ Exit")
+
+    choice = input("\nSelect an option (1/2/3): ").strip()
+
+    if choice == "1":
+        run_get()
+    elif choice == "2":
+        run_update()
+    elif choice == "3":
+        print(GREEN + "👋 Exiting. Have a nice day!" + RESET)
+        sys.exit(0)
+    else:
+        print(RED + "❌ Invalid option. Please try again." + RESET)
+
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 setup(
     name="adityassarode.codes",
-    version="1.0.4",
+    version="1.0.5",
     author="Aditya Sarode",
     description="Official code projects by Aditya Sarode",
     packages=find_packages(),
