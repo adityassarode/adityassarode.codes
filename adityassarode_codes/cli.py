@@ -327,37 +327,82 @@ def download_local(base):
 
     post_download_output(root)
 
-def ask_open_vscode(path):
-    answer = input(
+def ask_open_in_ide(path):
+    print(
         YELLOW +
-        "\n🧠 Do you want to open the downloaded files in VS Code? (y/n): "
+        "\n🧠 How would you like to open the downloaded files?\n"
         + RESET
-    ).strip().lower()
+    )
+    print(" 1. 🟦 VS Code")
+    print(" 2. 🟪 PyCharm")
+    print(" 3. 📂 Open folder in file manager")
+    print(" 0. ❌ Do nothing")
 
-    if answer == "y":
+    choice = input("\nSelect option: ").strip()
+
+    opened = False
+
+    # 1️⃣ VS Code
+    if choice == "1":
         try:
             subprocess.run(
-                ["code", path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                ["code", "--reuse-window", "-r", path],
                 check=True
             )
-            print(GREEN + "🚀 Opened in VS Code." + RESET)
+            print(GREEN + "🚀 Opening in VS Code" + RESET)
+            opened = True
         except Exception:
+            print(RED + "❌ VS Code CLI not found." + RESET)
+
+    # 2️⃣ PyCharm
+    elif choice == "2":
+        try:
+            subprocess.run(["charm", path], check=True)
+            print(GREEN + "🚀 Opening in PyCharm" + RESET)
+            opened = True
+        except Exception:
+            print(RED + "❌ PyCharm CLI not available." + RESET)
             print(
-                RED +
-                "❌ VS Code is not installed or 'code' command is unavailable.\n"
+                YELLOW +
+                "ℹ️ Enable it in PyCharm: Tools → Create Command-line Launcher\n"
                 + RESET
             )
-            print(
-                CYAN +
-                f"📁 Files are located at: {path}"
-                + RESET
-            )
-    else:
+
+    # 3️⃣ File manager (most reliable)
+    elif choice == "3":
+        try:
+            if sys.platform.startswith("linux"):
+                subprocess.Popen(["xdg-open", path])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", path])
+            elif sys.platform.startswith("win"):
+                subprocess.Popen(["explorer", path])
+            print(GREEN + "📂 Opening folder in file manager" + RESET)
+            opened = True
+        except Exception:
+            pass
+
+    # Always show path (ALL options)
+    print(
+        CYAN +
+        "\n📁 Files are saved at:\n" +
+        path +
+        RESET
+    )
+
+    # Environment-specific hints
+    if path.startswith("/root"):
         print(
-            CYAN +
-            f"\n📁 Files are saved at:\n{path}"
+            YELLOW +
+            "📌 Google Colab detected: Open the Files panel on the left, "
+            "expand the menu using the two dots (..), and open the folder named \"root\".\n"
+            + RESET
+        )
+
+    if not opened:
+        print(
+            YELLOW +
+            "ℹ️ Tip: You can open this path in any editor of your choice.\n"
             + RESET
         )
 
@@ -373,7 +418,8 @@ def post_download_output(root):
     print("📂 adityassarode")
     show_tree_with_icons(root, "  ")
 
-    ask_open_vscode(root)
+    ask_open_in_ide(root)
+
 
 
 
