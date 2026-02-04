@@ -327,6 +327,40 @@ def download_local(base):
 
     post_download_output(root)
 
+def ask_open_vscode(path):
+    answer = input(
+        YELLOW +
+        "\n🧠 Do you want to open the downloaded files in VS Code? (y/n): "
+        + RESET
+    ).strip().lower()
+
+    if answer == "y":
+        try:
+            subprocess.run(
+                ["code", path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True
+            )
+            print(GREEN + "🚀 Opened in VS Code." + RESET)
+        except Exception:
+            print(
+                RED +
+                "❌ VS Code is not installed or 'code' command is unavailable.\n"
+                + RESET
+            )
+            print(
+                CYAN +
+                f"📁 Files are located at: {path}"
+                + RESET
+            )
+    else:
+        print(
+            CYAN +
+            f"\n📁 Files are saved at:\n{path}"
+            + RESET
+        )
+
 
 # =========================
 # Final Output
@@ -339,13 +373,8 @@ def post_download_output(root):
     print("📂 adityassarode")
     show_tree_with_icons(root, "  ")
 
-    print(
-    "\n"
-    + CYAN
-    + f"👉 Open with: code {root}"
-    + RESET
-)
-    subprocess.call(["code", root])
+    ask_open_vscode(root)
+
 
 
 
