@@ -4,7 +4,8 @@ This tool is created to support learning and understanding of concepts.
 It should be used as guidance, similar to books or study materials.  
 Users are expected to practice, explore, and learn on their own.
 
-- You **must not** copy, submit, or present the generated code as your own work for marks or academic credit.
+- You **must not** copy, submit, or present the generated code as your own work for marks, academic credit or use in examinations is strictly prohibited.
+- If you are caught cheating in an exam using this, I am not responsible. This is provided only for learning, not for copying in exams.
 - By continuing to use this tool, you confirm that you have read and understood the rules above.
 - You accept full responsibility for how you use this tool and its output.
 
